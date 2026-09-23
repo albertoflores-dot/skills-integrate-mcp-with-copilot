@@ -16,12 +16,26 @@ body {
 }
 
 header {
+  position: relative;
   text-align: center;
   padding: 20px 0;
   margin-bottom: 30px;
   background-color: #1a237e;
   color: white;
   border-radius: 5px;
+}
+
+.header-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.header-actions button {
+  background-color: #ffffff;
+  color: #1a237e;
 }
 
 header h1 {
@@ -123,6 +137,10 @@ section h3 {
 
 .delete-btn:hover {
   background-color: #ffebee;
+}
+
+.login-panel {
+  max-width: 500px;
 }
 
 .participants-section p {

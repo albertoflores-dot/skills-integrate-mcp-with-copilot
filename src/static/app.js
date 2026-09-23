@@ -3,6 +3,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const loginButton = document.getElementById("login-button");
+  const loginPanel = document.getElementById("login-panel");
+  const loginForm = document.getElementById("login-form");
+  const loginMessage = document.getElementById("login-message");
+  const signupContainer = document.getElementById("signup-container");
+  const teacherStatus = document.getElementById("teacher-status");
+  let teacherToken = sessionStorage.getItem("teacherToken");
+
+  function isTeacher() {
+    return Boolean(teacherToken);
+  }
+
+  function updateAuthUI() {
+    const loggedIn = isTeacher();
+    teacherStatus.textContent = loggedIn ? "Teacher mode" : "Student view";
+    loginButton.textContent = loggedIn ? "Log out" : "Teacher login";
+    signupContainer.classList.toggle("hidden", !loggedIn);
+    loginPanel.classList.add("hidden");
+  }
+
+  function showMessage(element, text, className) {
+    element.textContent = text;
+    element.className = className;
+    element.classList.remove("hidden");
+  }
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -21,7 +46,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const spotsLeft =
           details.max_participants - details.participants.length;
 
-        // Create participants HTML with delete icons instead of bullet points
         const participantsHTML =
           details.participants.length > 0
             ? `<div class="participants-section">
@@ -30,7 +54,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${details.participants
                   .map(
                     (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                      `<li><span class="participant-email">${email}</span>${
+                        isTeacher()
+                          ? `<button class="delete-btn" type="button" data-activity="${name}" data-email="${email}" aria-label="Remove ${email}">Remove</button>`
+                          : ""
+                      }</li>`
                   )
                   .join("")}
               </ul>
@@ -48,8 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
 
         activitiesList.appendChild(activityCard);
+      });
 
-        // Add option to select dropdown
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+      Object.keys(activities).forEach((name) => {
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;
@@ -80,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/unregister?email=${encodeURIComponent(email)}`,
         {
           method: "DELETE",
+          headers: { Authorization: `Bearer ${teacherToken}` },
         }
       );
 
@@ -91,9 +122,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Refresh activities list to show updated participants
         fetchActivities();
+      } else if (response.status === 401) {
+        teacherToken = null;
+        sessionStorage.removeItem("teacherToken");
+        updateAuthUI();
+        showMessage(messageDiv, "Your teacher session has expired.", "error");
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        showMessage(messageDiv, result.detail || "An error occurred", "error");
       }
 
       messageDiv.classList.remove("hidden");
@@ -124,6 +159,7 @@ document.addEventListener("DOMContentLoaded", () => {
         )}/signup?email=${encodeURIComponent(email)}`,
         {
           method: "POST",
+          headers: { Authorization: `Bearer ${teacherToken}` },
         }
       );
 
@@ -136,9 +172,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Refresh activities list to show updated participants
         fetchActivities();
+      } else if (response.status === 401) {
+        teacherToken = null;
+        sessionStorage.removeItem("teacherToken");
+        updateAuthUI();
+        showMessage(messageDiv, "Your teacher session has expired.", "error");
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+        showMessage(messageDiv, result.detail || "An error occurred", "error");
       }
 
       messageDiv.classList.remove("hidden");
@@ -155,6 +195,48 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  loginButton.addEventListener("click", () => {
+    if (isTeacher()) {
+      teacherToken = null;
+      sessionStorage.removeItem("teacherToken");
+      updateAuthUI();
+      fetchActivities();
+      return;
+    }
+
+    loginPanel.classList.toggle("hidden");
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    try {
+      const response = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        showMessage(loginMessage, result.detail || "Login failed", "error");
+        return;
+      }
+
+      teacherToken = result.token;
+      sessionStorage.setItem("teacherToken", teacherToken);
+      loginForm.reset();
+      updateAuthUI();
+      fetchActivities();
+    } catch (error) {
+      showMessage(loginMessage, "Unable to contact the login service.", "error");
+      console.error("Error logging in:", error);
+    }
+  });
+
   // Initialize app
+  updateAuthUI();
   fetchActivities();
 });
